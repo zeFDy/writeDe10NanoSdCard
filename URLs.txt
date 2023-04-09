@@ -1,0 +1,1 @@
+http://xillybus.com/tutorials/u-boot-image-altera-soc
