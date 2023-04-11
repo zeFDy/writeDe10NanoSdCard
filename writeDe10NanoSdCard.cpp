@@ -10,10 +10,31 @@
 
 FILE*       myLogFile               = 0;
 #define     MAXIMUM_DUMP_SIZE       0x1000
+#define     PADDED_SIZE	            0x10000
 uint32_t    uiAlteraPartition       = 0;
 uint32_t    uiLinuxPartition        = 0;
 char*       dataToWrite             = 0;
 
+#pragma pack(1)
+typedef struct  
+{
+    uint8_t     ucBootIndicator;
+    uint8_t     ucStartingCHSValues[3];
+    uint8_t     ucPartitionTypeDescriptor;
+    uint8_t     ucEndingCHSValues[3];
+    uint32_t    uiStartingSector;
+    uint32_t    uiPartitionSize;
+}   MbrPartitionInfo;
+
+#pragma pack(1)
+typedef struct 
+{
+    uint8_t             ucRoutine[0x1B8];
+    uint32_t            uiSignature;
+    uint16_t            usNull;
+    MbrPartitionInfo    InfoPart[4];
+    uint16_t            usMagic;
+}   MbrInfo;
 
 void    HexDump(unsigned char* ucData, unsigned int iSize)
 {
@@ -134,69 +155,90 @@ void    DumpPartitionTableEntry(unsigned char* ucStart, uint8_t uiPartitionIndex
         
 }
 
-int main()
+int     main(int argc, char* argv[])
 {
-   char cDriveLetter = 'J';                 // J sur PC i9
-   //char cDriveLetter = 'E';               // E sur PC i5 Laptop Boulot
+        #define DEFAULT_INPUT_FILENAME		    "myBoot.img"
+        #define DEFAULT_DRIVE_LETTER            'J'
 
-   myLogFile = fopen("logFile.txt", "wt");
+        #define OFFSET_INFO_PARTITION1_IN_MBR   0x1BE
+        #define OFFSET_INFO_PARTITION2_IN_MBR   0x1CE
+        #define OFFSET_INFO_PARTITION3_IN_MBR   0x1DE
+        #define OFFSET_INFO_PARTITION4_IN_MBR   0x1EE
+        #define OFFSET_INFO_MAGIC_IN_MBR        0x1FE
 
-   std::cout << "----------------------------\n";
-   std::cout << "  Run this tool as admin !\n";
-   std::cout << "----------------------------\n";
-   int volumeID = cDriveLetter - 'A';
+
+        //char   cDriveLetter = 'J';                 // J sur PC i9
+        //char   cDriveLetter = 'E';                 // E sur PC i5 Laptop Boulot
+
+        char        cDriveLetter         = DEFAULT_DRIVE_LETTER;
+        char        caInputFileName[256] = DEFAULT_INPUT_FILENAME;
+        uint32_t    uiSizeOfMbr = sizeof(MbrInfo);
+
+       if (argc >= 2)       // 1er argument (optionnel) est la lettre 
+       {
+           std::cout << "argv[1]  = " << argv[1] << "\n";
+           cDriveLetter = argv[1][0];
+       }
+
+       if (argc >= 3)       // 2eme argument (optionnel) est le fichier 
+       {
+           std::cout << "argv[2]  = " << argv[2] << "\n";
+           memset(caInputFileName, 0, 256);
+           if (strlen(argv[2]) < 256)       strncpy(caInputFileName, argv[2], strlen(argv[2]));
+           else                             exit(-1);
+       }
+
+       myLogFile = fopen("logFile.txt", "wt");
+
+       std::cout << "----------------------------\n";
+       std::cout << "  Run this tool as admin !\n";
+       std::cout << "----------------------------\n";
+       int volumeID = cDriveLetter - 'A';
    
-   HANDLE               hFile;
-   HANDLE               hRawDisk;
-   unsigned long long   sectorsize;
-   char                 *sectorData;
-   unsigned long long   i, numsectors;
-   unsigned int         uiMaxSectorLoadingSize;
+       HANDLE               hFile;
+       HANDLE               hReadRawDisk;
+       unsigned long long   sectorsize;
+       char                 *sectorData;
+       unsigned long long   i, numsectors;
+       unsigned int         uiMaxSectorLoadingSize;
 
-   // acces en lecture
-   HANDLE hVolume	= getHandleOnVolume(volumeID, GENERIC_READ);
-   DWORD deviceID	= getDeviceID(hVolume);
+       // acces en lecture
+       HANDLE hVolume	= getHandleOnVolume(volumeID, GENERIC_READ);
+       DWORD deviceID	= getDeviceID(hVolume);
    
-   if (!getLockOnVolume(hVolume))
-   {
-       CloseHandle(hVolume);
-       exit(-1);
-   }
-   if (!unmountVolume(hVolume))
-   {
-       removeLockOnVolume(hVolume);
-       CloseHandle(hVolume);
-       exit(-1);
-   }
-   //hFile = getHandleOnFile(LPCWSTR(myFile.data()), GENERIC_WRITE);
-   //if (hFile == INVALID_HANDLE_VALUE)
-   //{
-   //    removeLockOnVolume(hVolume);
-   //    CloseHandle(hVolume);
-   //    exit(-1);
-   //}
-   hRawDisk = getHandleOnDevice(deviceID, GENERIC_READ);
-   if (hRawDisk == INVALID_HANDLE_VALUE)
-   {
-       removeLockOnVolume(hVolume);
-       //CloseHandle(hFile);
-       CloseHandle(hVolume);
-       exit(-1);
-   }
+       if (!getLockOnVolume(hVolume))
+       {
+           CloseHandle(hVolume);
+           exit(-1);
+       }
 
-   numsectors = getNumberOfSectors(hRawDisk, &sectorsize);
-   printf("numsectors = %d\n", numsectors);
-   fprintf(myLogFile, "numsectors = %d\n", numsectors);
+       if (!unmountVolume(hVolume))
+       {
+           removeLockOnVolume(hVolume);
+           CloseHandle(hVolume);
+           exit(-1);
+       }
 
-   uiMaxSectorLoadingSize = MAXIMUM_DUMP_SIZE / sectorsize;
+       hReadRawDisk = getHandleOnDevice(deviceID, GENERIC_READ);
+       if (hReadRawDisk == INVALID_HANDLE_VALUE)
+       {
+           removeLockOnVolume(hVolume);
+           //CloseHandle(hFile);
+           CloseHandle(hVolume);
+           exit(-1);
+       }
+
+       numsectors = getNumberOfSectors(hReadRawDisk, &sectorsize);
+       printf("numsectors = %d\n", numsectors);
+       fprintf(myLogFile, "numsectors = %d\n", numsectors);
+
+       uiMaxSectorLoadingSize = MAXIMUM_DUMP_SIZE / sectorsize;
 
 
-   //if(partitionCheckBox->isChecked())
-   //{
         // Read MBR partition table
         printf("Read MBR partition table\n");
         fprintf(myLogFile, "Read MBR partition table\n");
-        sectorData = readSectorDataFromHandle(hRawDisk, 0, 1ul, 512ul);
+        sectorData = readSectorDataFromHandle(hReadRawDisk, 0, 1ul, 512ul);
         HexDump((unsigned char*)sectorData, 512);
         printf("\n");
         fprintf(myLogFile, "\n");
@@ -208,147 +250,139 @@ int main()
         fprintf(myLogFile, "\n");
         printf("Read MBR 1st partition :\n");
         fprintf(myLogFile, "Read MBR 1st partition :\n");
-        HexDump((unsigned char*)&sectorData[0x1BE], 16);
+        HexDump((unsigned char*)&sectorData[OFFSET_INFO_PARTITION1_IN_MBR], 16);
         printf("\n");
         fprintf(myLogFile, "\n");
-        DumpPartitionTableEntry((unsigned char*)&sectorData[0x1BE], 0);
+        DumpPartitionTableEntry((unsigned char*)&sectorData[OFFSET_INFO_PARTITION1_IN_MBR], 0);
 
         printf("\n");
         fprintf(myLogFile, "\n");
         printf("Read MBR 2nd partition :\n");
         fprintf(myLogFile, "Read MBR 2nd partition :\n");
-        HexDump((unsigned char*)&sectorData[0x1CE], 16);
+        HexDump((unsigned char*)&sectorData[OFFSET_INFO_PARTITION2_IN_MBR], 16);
         printf("\n");
         fprintf(myLogFile, "\n");
-        DumpPartitionTableEntry((unsigned char*)&sectorData[0x1CE], 1);
+        DumpPartitionTableEntry((unsigned char*)&sectorData[OFFSET_INFO_PARTITION2_IN_MBR], 1);
 
         printf("\n");
         fprintf(myLogFile, "\n");
         printf("Read MBR 3rd partition :\n");
         fprintf(myLogFile, "Read MBR 3rd partition :\n");
-        HexDump((unsigned char*)&sectorData[0x1DE], 16);
+        HexDump((unsigned char*)&sectorData[OFFSET_INFO_PARTITION3_IN_MBR], 16);
         printf("\n");
         fprintf(myLogFile, "\n");
-        DumpPartitionTableEntry((unsigned char*)&sectorData[0x1DE], 2);
+        DumpPartitionTableEntry((unsigned char*)&sectorData[OFFSET_INFO_PARTITION3_IN_MBR], 2);
 
         printf("\n");
         fprintf(myLogFile, "\n");
         printf("Read MBR 4th partition :\n");
         fprintf(myLogFile, "Read MBR 4th partition :\n");
-        HexDump((unsigned char*)&sectorData[0x1EE], 16);
+        HexDump((unsigned char*)&sectorData[OFFSET_INFO_PARTITION4_IN_MBR], 16);
         printf("\n");
         fprintf(myLogFile, "\n");
-        DumpPartitionTableEntry((unsigned char*)&sectorData[0x1EE], 3);
+        DumpPartitionTableEntry((unsigned char*)&sectorData[OFFSET_INFO_PARTITION4_IN_MBR], 3);
         
-        numsectors = 1ul;
-        // Read partition information
-        for (i=0ul; i<4ul; i++)
+//        numsectors = 1ul;
+//        // Read partition information
+//        for (i=0ul; i<4ul; i++)
+//        {
+//            uint32_t partitionStartSector = *((uint32_t*) (sectorData   + OFFSET_INFO_PARTITION1_IN_MBR + 8     + 16*i));
+//            uint32_t partitionNumSectors = *((uint32_t*) (sectorData    + OFFSET_INFO_PARTITION1_IN_MBR + 12    + 16*i));
+//        
+//            fprintf(myLogFile, "\n");
+//            fprintf(myLogFile, "[%d] partitionStartSector : 0x%.08X (%d)\n", i, partitionStartSector,    partitionStartSector);
+//            fprintf(myLogFile, "[%d] partitionNumSectors  : 0x%.08X (%d)\n", i, partitionNumSectors,     partitionNumSectors);
+//
+//            // Set numsectors to end of last partition
+////            if (partitionStartSector + partitionNumSectors > numsectors)
+////            {
+////                numsectors = partitionStartSector + partitionNumSectors;
+////            }
+//
+//            // 3rd Partition is Cyclone V :
+//            // read & dump the data of this partition
+//            // start sector = 0x0800 - partition size = 0x1000
+//
+//            int iNumOfSectorToLoad = partitionNumSectors;
+//            if (iNumOfSectorToLoad > uiMaxSectorLoadingSize)   iNumOfSectorToLoad = uiMaxSectorLoadingSize;
+//
+//            char* partitionData = readSectorDataFromHandle(hReadRawDisk, partitionStartSector, iNumOfSectorToLoad /*partitionNumSectors*/, 512ul);
+//
+//            printf("Dump partition %d :\n", i+1);
+//            fprintf(myLogFile, "Dump partition %d :\n", i + 1);
+//            HexDump((unsigned char*)partitionData, iNumOfSectorToLoad * 512);
+//
+//        }
+
+        //// copy altera partition to linux partition (to try write Sector)
+        //uint32_t alteraPartitionStartSector   = *((uint32_t*)(sectorData + OFFSET_INFO_PARTITION1_IN_MBR + 8  + 16 * uiAlteraPartition));
+        //uint32_t alteraPartitionNumSectors    = *((uint32_t*)(sectorData + OFFSET_INFO_PARTITION1_IN_MBR + 12 + 16 * uiAlteraPartition));
+
+        ////// Set numsectors to end of last partition
+        ////if (partitionStartSector + partitionNumSectors > numsectors)
+        ////{
+        ////    numsectors = partitionStartSector + partitionNumSectors;
+        ////}
+        //        
+        //int iNumOfSectorToLoad = alteraPartitionNumSectors;
+        //if (iNumOfSectorToLoad > uiMaxSectorLoadingSize)   iNumOfSectorToLoad = uiMaxSectorLoadingSize;
+
+        //char* dataToWrite = readSectorDataFromHandle(hReadRawDisk, alteraPartitionStartSector, 8 /*iNumOfSectorToLoad*/, 512ul);
+
+        ////printf("\n\n\nDump partition %d :\n", uiAlteraPartition + 1);
+        ////fprintf(myLogFile, "\n\n\nDump partition %d :\n", uiAlteraPartition + 1);
+        ////HexDump((unsigned char*)partitionData, partitionNumSectors * 512);
+
+        removeLockOnVolume(hVolume);
+        CloseHandle(hReadRawDisk);
+        CloseHandle(hVolume);
+
+        // lecture du fichier
+        FILE* myFile = NULL;
+        unsigned char* dataToWrite = (unsigned char*)malloc(PADDED_SIZE);
+        fopen_s(&myFile, caInputFileName, "rb");
+        fread(dataToWrite, 1, PADDED_SIZE, myFile);
+        fclose(myFile);
+
+        // puis acces en ecriture
+        HANDLE  hWriteVolume = getHandleOnVolume(volumeID, GENERIC_WRITE);
+        DWORD   writeDeviceID = getDeviceID(hWriteVolume);
+        HANDLE  hWriteRawDisk;
+
+        if (!getLockOnVolume(hWriteVolume))
         {
-            uint32_t partitionStartSector = *((uint32_t*) (sectorData + 0x1BE + 8 + 16*i));
-            uint32_t partitionNumSectors = *((uint32_t*) (sectorData + 0x1BE + 12 + 16*i));
-        
-            fprintf(myLogFile, "\n");
-            fprintf(myLogFile, "[%d] partitionStartSector : 0x%.08X (%d)\n", i, partitionStartSector,    partitionStartSector);
-            fprintf(myLogFile, "[%d] partitionNumSectors  : 0x%.08X (%d)\n", i, partitionNumSectors,     partitionNumSectors);
-
-            // Set numsectors to end of last partition
-//            if (partitionStartSector + partitionNumSectors > numsectors)
-//            {
-//                numsectors = partitionStartSector + partitionNumSectors;
-//            }
-
-            // 3rd Partition is Cyclone V :
-            // read & dump the data of this partition
-            // start sector = 0x0800 - partition size = 0x1000
-
-            int iNumOfSectorToLoad = partitionNumSectors;
-            if (iNumOfSectorToLoad > uiMaxSectorLoadingSize)   iNumOfSectorToLoad = uiMaxSectorLoadingSize;
-
-            char* partitionData = readSectorDataFromHandle(hRawDisk, partitionStartSector, iNumOfSectorToLoad /*partitionNumSectors*/, 512ul);
-
-            printf("Dump partition %d :\n", i+1);
-            fprintf(myLogFile, "Dump partition %d :\n", i + 1);
-            HexDump((unsigned char*)partitionData, iNumOfSectorToLoad * 512);
-
+            CloseHandle(hWriteVolume);
+            exit(-1);
         }
 
-        // copy altera partition to linux partition (to try write Sector)
-        uint32_t alteraPartitionStartSector   = *((uint32_t*)(sectorData + 0x1BE + 8  + 16 * uiAlteraPartition));
-        uint32_t alteraPartitionNumSectors    = *((uint32_t*)(sectorData + 0x1BE + 12 + 16 * uiAlteraPartition));
+        if (!unmountVolume(hWriteVolume))
+        {
+            removeLockOnVolume(hWriteVolume);
+            CloseHandle(hWriteVolume);
+            exit(-1);
+        }
 
-        //// Set numsectors to end of last partition
-        //if (partitionStartSector + partitionNumSectors > numsectors)
-        //{
-        //    numsectors = partitionStartSector + partitionNumSectors;
-        //}
-                
-        int iNumOfSectorToLoad = alteraPartitionNumSectors;
-        if (iNumOfSectorToLoad > uiMaxSectorLoadingSize)   iNumOfSectorToLoad = uiMaxSectorLoadingSize;
+        hWriteRawDisk = getHandleOnDevice(writeDeviceID, GENERIC_WRITE);
+        if (hWriteRawDisk == INVALID_HANDLE_VALUE)
+        {
+            removeLockOnVolume(hWriteVolume);
+            //CloseHandle(hFile);
+            CloseHandle(hWriteVolume);
+            exit(-1);
+        }
 
-        char* dataToWrite = readSectorDataFromHandle(hRawDisk, alteraPartitionStartSector, 8 /*iNumOfSectorToLoad*/, 512ul);
+        fprintf(myLogFile, "\n\n\nDump dataToWrite :\n");
+        //memset(dataToWrite + 256, 0, 256);                // juste un essai
+        HexDump((unsigned char*)dataToWrite, 8 * 512);
 
-        //printf("\n\n\nDump partition %d :\n", uiAlteraPartition + 1);
-        //fprintf(myLogFile, "\n\n\nDump partition %d :\n", uiAlteraPartition + 1);
-        //HexDump((unsigned char*)partitionData, partitionNumSectors * 512);
+        uint32_t alteraPartitionStartSector = *((uint32_t*)(sectorData + OFFSET_INFO_PARTITION1_IN_MBR + 8 + 16 * uiAlteraPartition));
+        writeSectorDataToHandle(hWriteRawDisk, (char*)dataToWrite, alteraPartitionStartSector, PADDED_SIZE/512, 512ul);
 
-    //}
-
-
-    removeLockOnVolume(hVolume);
-    CloseHandle(hRawDisk);
-    //CloseHandle(hFile);
-    CloseHandle(hVolume);
-
-
-    // puis acces en ecriture
-    HANDLE  hWriteVolume = getHandleOnVolume(volumeID, GENERIC_WRITE);
-    DWORD   writeDeviceID = getDeviceID(hWriteVolume);
-
-    if (!getLockOnVolume(hWriteVolume))
-    {
-        CloseHandle(hWriteVolume);
-        exit(-1);
-    }
-    if (!unmountVolume(hWriteVolume))
-    {
+        free(dataToWrite);
         removeLockOnVolume(hWriteVolume);
+        CloseHandle(hWriteRawDisk);
         CloseHandle(hWriteVolume);
-        exit(-1);
-    }
-    //hFile = getHandleOnFile(LPCWSTR(myFile.data()), GENERIC_WRITE);
-    //if (hFile == INVALID_HANDLE_VALUE)
-    //{
-    //    removeLockOnVolume(hVolume);
-    //    CloseHandle(hVolume);
-    //    exit(-1);
-    //}
-    hRawDisk = getHandleOnDevice(writeDeviceID, GENERIC_WRITE);
-    if (hRawDisk == INVALID_HANDLE_VALUE)
-    {
-        removeLockOnVolume(hWriteVolume);
-        //CloseHandle(hFile);
-        CloseHandle(hWriteVolume);
-        exit(-1);
-    }
 
-    fprintf(myLogFile, "\n\n\nDump dataToWrite :\n");
-    //memset(dataToWrite + 256, 0, 256);                // juste un essai
-    HexDump((unsigned char*)dataToWrite, 8 * 512);
-
-    uint32_t linuxPartitionStartSector = *((uint32_t*)(sectorData + 0x1BE + 8 + 16 * uiLinuxPartition));
-    writeSectorDataToHandle(hRawDisk, dataToWrite, linuxPartitionStartSector, 8, 512ul);
-
-
-    fclose(myLogFile);
+        fclose(myLogFile);
 }
 
-// Exécuter le programme : Ctrl+F5 ou menu Déboguer > Exécuter sans débogage
-// Déboguer le programme : F5 ou menu Déboguer > Démarrer le débogage
-
-// Astuces pour bien démarrer : 
-//   1. Utilisez la fenêtre Explorateur de solutions pour ajouter des fichiers et les gérer.
-//   2. Utilisez la fenêtre Team Explorer pour vous connecter au contrôle de code source.
-//   3. Utilisez la fenêtre Sortie pour voir la sortie de la génération et d'autres messages.
-//   4. Utilisez la fenêtre Liste d'erreurs pour voir les erreurs.
-//   5. Accédez à Projet > Ajouter un nouvel élément pour créer des fichiers de code, ou à Projet > Ajouter un élément existant pour ajouter des fichiers de code existants au projet.
-//   6. Pour rouvrir ce projet plus tard, accédez à Fichier > Ouvrir > Projet et sélectionnez le fichier .sln.
