@@ -9,7 +9,7 @@
 #include "disk.h"
 
 FILE*       myLogFile                   =0;
-#define     MAXIMUM_DUMP_SIZE           0x1000
+#define     MAXIMUM_DUMP_SIZE           0x10000
 #define     PADDED_SIZE	                0x10000
 uint32_t    uiAlteraPartition           =0;
 //uint32_t  uiLinuxPartition            =0;
@@ -95,16 +95,17 @@ void    ReadPartitionTableEntry(MbrPartitionInfo* thisPartition)
         uint8_t     ucPartitionTypeDescriptor   = thisPartition->ucPartitionTypeDescriptor;
         uint32_t    uiStartingSector            = thisPartition->uiStartingSector;
         uint32_t    uiPartitionSize             = thisPartition->uiPartitionSize;
-
-        printf("[00] %.02X Boot Indicator -> ", ucBootIndicator);
-        fprintf(myLogFile, "[00] %.02X Boot Indicator -> ", ucBootIndicator);
+        
+        
+        printf("Boot Indicator              0x%.02X -> ", ucBootIndicator);
+        fprintf(myLogFile, "Boot Indicator              0x%.02X ->", ucBootIndicator);
 
         if (ucBootIndicator == 0x80)    { printf("Active\n");    fprintf(myLogFile, "Active\n"); }
         else                            { printf("Inactive\n");  fprintf(myLogFile, "Inactive\n"); }
 
 
-        printf("[04] %.02X Partition Type -> ", ucPartitionTypeDescriptor);
-        fprintf(myLogFile, "[04] %.02X Partition Type -> ", ucPartitionTypeDescriptor);
+        printf("Partition Type              0x%.02X -> ", ucPartitionTypeDescriptor);
+        fprintf(myLogFile, "Partition Type              0x%.02X -> ", ucPartitionTypeDescriptor);
         
         switch(ucPartitionTypeDescriptor)
         {
@@ -135,7 +136,7 @@ void    ReadPartitionTableEntry(MbrPartitionInfo* thisPartition)
         //fprintf(myLogFile, "[08] %.02X%.02X%.02X%.02X Starting Sector\n", (unsigned char*)ucStart[8], (unsigned char*)ucStart[9], (unsigned char*)ucStart[10], (unsigned char*)ucStart[11]);
         //uiMyInt = ucStart[8] + 256 * ucStart[9] + 65536 * ucStart[10] + 16777216 * ucStart[11];
         printf("Starting Sector             0x%.08X\n", uiStartingSector);
-        fprintf(myLogFile, "Starting Sector     %.08X\n", uiStartingSector);
+        fprintf(myLogFile, "Starting Sector             0x%.08X\n", uiStartingSector);
 
         //printf("[12] %.02X%.02X%.02X%.02X Partition Size (in sectors)\n", (unsigned char*)ucStart[12], (unsigned char*)ucStart[13], (unsigned char*)ucStart[14], (unsigned char*)ucStart[15]);
         //fprintf(myLogFile, "[12] %.02X%.02X%.02X%.02X Partition Size (in sectors)\n", (unsigned char*)ucStart[12], (unsigned char*)ucStart[13], (unsigned char*)ucStart[14], (unsigned char*)ucStart[15]);
@@ -151,93 +152,112 @@ void    ReadMBR(MbrInfo* thisMbr)
         printf("Read MBR\n");
         fprintf(myLogFile, "Read MBR\n");
 
-        printf("MAGIC NUMBER : 0x.04X\n", thisMbr->usMagic);
-        fprintf(myLogFile, "MAGIC NUMBER : 0x.04X\n", thisMbr->usMagic);
-
-        ReadPartitionTableEntry(&thisMbr->InfoPart[0]);
-        ReadPartitionTableEntry(&thisMbr->InfoPart[1]);
-        ReadPartitionTableEntry(&thisMbr->InfoPart[2]);
-        ReadPartitionTableEntry(&thisMbr->InfoPart[3]);
-}
-
-void    DumpPartitionTableEntry(unsigned char* ucStart, uint8_t uiPartitionIndex)
-{
-        unsigned int uiMyInt = 0;
-
-        printf("[00] %.02X Boot Indicator -> ", (unsigned char*)ucStart[0]);
-        fprintf(myLogFile, "[00] %.02X Boot Indicator -> ", (unsigned char*)ucStart[0]);
-
-        
-        if (ucStart[0] == 0x80)     {printf("Active\n");    fprintf(myLogFile, "Active\n");     }
-        else                        {printf("Inactive\n");  fprintf(myLogFile, "Inactive\n");   }
-
-        printf("[04] %.02X Partition Type -> ", (unsigned char*)ucStart[4]);
-        fprintf(myLogFile, "[04] %.02X Partition Type -> ", (unsigned char*)ucStart[4]);
-        
-        switch(ucStart[4])
-        {
-            case    0x00:       printf("Empty partition entry");
-                                fprintf(myLogFile, "Empty partition entry");
-                                break;
-            case    0x0C:       printf("FAT32 with LBA");
-                                fprintf(myLogFile, "FAT32 with LBA");
-                                break;
-
-            case    0x83:       printf("Linux");
-                                fprintf(myLogFile, "Linux");
-                                //uiLinuxPartition = uiPartitionIndex;
-                                break;
-            
-            case    0xA2:       printf("Altera Cyclone V");
-                                fprintf(myLogFile, "Altera Cyclone V");
-                                uiAlteraPartition = uiPartitionIndex;
-                                break;
-            
-            default:            printf("I don't know..");
-                                fprintf(myLogFile, "I don't know..");
-        }
+        printf("MAGIC NUMBER : 0x%.04X\n", thisMbr->usMagic);
+        fprintf(myLogFile, "MAGIC NUMBER : 0x%.04X\n", thisMbr->usMagic);
 
         printf("\n");
         fprintf(myLogFile, "\n");
-
-        printf("[01] %.02X%.02X%.02X   Starting CHS Value\n", (unsigned char*)ucStart[1], (unsigned char*)ucStart[2],(unsigned char*)ucStart[3] );
-        fprintf(myLogFile, "[01] %.02X%.02X%.02X   Starting CHS Value\n", (unsigned char*)ucStart[1], (unsigned char*)ucStart[2], (unsigned char*)ucStart[3]);
-        uiMyInt = ucStart[1] + 256 * ucStart[2] + 65536 * ucStart[3];
-        printf("     %.06X\n", uiMyInt);
-        fprintf(myLogFile, "     %.06X\n", uiMyInt);
-
-        printf("[05] %.02X%.02X%.02X   Ending CHS Value\n", (unsigned char*)ucStart[5], (unsigned char*)ucStart[6],(unsigned char*)ucStart[7] );
-        fprintf(myLogFile, "[05] %.02X%.02X%.02X   Ending CHS Value\n", (unsigned char*)ucStart[5], (unsigned char*)ucStart[6], (unsigned char*)ucStart[7]);
-        uiMyInt = ucStart[5] + 256 * ucStart[6] + 65536 * ucStart[7];
-        printf("     %.06X\n", uiMyInt);
-        fprintf(myLogFile, "     %.06X\n", uiMyInt);
-
-        printf("[08] %.02X%.02X%.02X%.02X Starting Sector\n", (unsigned char*)ucStart[8], (unsigned char*)ucStart[9],(unsigned char*)ucStart[10],(unsigned char*)ucStart[11] );
-        fprintf(myLogFile, "[08] %.02X%.02X%.02X%.02X Starting Sector\n", (unsigned char*)ucStart[8], (unsigned char*)ucStart[9], (unsigned char*)ucStart[10], (unsigned char*)ucStart[11]);
-        uiMyInt = ucStart[8] + 256 * ucStart[9] + 65536 * ucStart[10] + 16777216 * ucStart[11];
-        printf("     %.08X\n", uiMyInt);
-        fprintf(myLogFile, "     %.08X\n", uiMyInt);
-
-        printf("[12] %.02X%.02X%.02X%.02X Partition Size (in sectors)\n", (unsigned char*)ucStart[12], (unsigned char*)ucStart[13],(unsigned char*)ucStart[14],(unsigned char*)ucStart[15] );
-        fprintf(myLogFile, "[12] %.02X%.02X%.02X%.02X Partition Size (in sectors)\n", (unsigned char*)ucStart[12], (unsigned char*)ucStart[13], (unsigned char*)ucStart[14], (unsigned char*)ucStart[15]);
-        uiMyInt = ucStart[12] + 256 * ucStart[13] + 65536 * ucStart[14] + 16777216 * ucStart[15];
-        printf("     %.08X\n", uiMyInt);
-        fprintf(myLogFile, "     %.08X\n", uiMyInt);
-
-
+        printf("Read MBR 1st partition :\n");
+        fprintf(myLogFile, "Read MBR 1st partition :\n");
+        ReadPartitionTableEntry(&thisMbr->InfoPart[0]);
         
+        printf("\n");
+        fprintf(myLogFile, "\n");
+        printf("Read MBR 2nd partition :\n");
+        fprintf(myLogFile, "Read MBR 2nd partition :\n");
+        ReadPartitionTableEntry(&thisMbr->InfoPart[1]);
+        
+        printf("\n");
+        fprintf(myLogFile, "\n");
+        printf("Read MBR 3rd partition :\n");
+        fprintf(myLogFile, "Read MBR 3rd partition :\n");
+        ReadPartitionTableEntry(&thisMbr->InfoPart[2]);
+        
+        printf("\n");
+        fprintf(myLogFile, "\n");
+        printf("Read MBR 4th partition :\n");
+        fprintf(myLogFile, "Read MBR 4th partition :\n");
+        ReadPartitionTableEntry(&thisMbr->InfoPart[3]);
 }
+
+//void    DumpPartitionTableEntry(unsigned char* ucStart, uint8_t uiPartitionIndex)
+//{
+//        unsigned int uiMyInt = 0;
+//
+//        printf("[00] %.02X Boot Indicator -> ", (unsigned char*)ucStart[0]);
+//        fprintf(myLogFile, "[00] %.02X Boot Indicator -> ", (unsigned char*)ucStart[0]);
+//
+//        
+//        if (ucStart[0] == 0x80)     {printf("Active\n");    fprintf(myLogFile, "Active\n");     }
+//        else                        {printf("Inactive\n");  fprintf(myLogFile, "Inactive\n");   }
+//
+//        printf("[04] %.02X Partition Type -> ", (unsigned char*)ucStart[4]);
+//        fprintf(myLogFile, "[04] %.02X Partition Type -> ", (unsigned char*)ucStart[4]);
+//        
+//        switch(ucStart[4])
+//        {
+//            case    0x00:       printf("Empty partition entry");
+//                                fprintf(myLogFile, "Empty partition entry");
+//                                break;
+//            case    0x0C:       printf("FAT32 with LBA");
+//                                fprintf(myLogFile, "FAT32 with LBA");
+//                                break;
+//
+//            case    0x83:       printf("Linux");
+//                                fprintf(myLogFile, "Linux");
+//                                //uiLinuxPartition = uiPartitionIndex;
+//                                break;
+//            
+//            case    0xA2:       printf("Altera Cyclone V");
+//                                fprintf(myLogFile, "Altera Cyclone V");
+//                                uiAlteraPartition = uiPartitionIndex;
+//                                break;
+//            
+//            default:            printf("I don't know..");
+//                                fprintf(myLogFile, "I don't know..");
+//        }
+//
+//        printf("\n");
+//        fprintf(myLogFile, "\n");
+//
+//        printf("[01] %.02X%.02X%.02X   Starting CHS Value\n", (unsigned char*)ucStart[1], (unsigned char*)ucStart[2],(unsigned char*)ucStart[3] );
+//        fprintf(myLogFile, "[01] %.02X%.02X%.02X   Starting CHS Value\n", (unsigned char*)ucStart[1], (unsigned char*)ucStart[2], (unsigned char*)ucStart[3]);
+//        uiMyInt = ucStart[1] + 256 * ucStart[2] + 65536 * ucStart[3];
+//        printf("     %.06X\n", uiMyInt);
+//        fprintf(myLogFile, "     %.06X\n", uiMyInt);
+//
+//        printf("[05] %.02X%.02X%.02X   Ending CHS Value\n", (unsigned char*)ucStart[5], (unsigned char*)ucStart[6],(unsigned char*)ucStart[7] );
+//        fprintf(myLogFile, "[05] %.02X%.02X%.02X   Ending CHS Value\n", (unsigned char*)ucStart[5], (unsigned char*)ucStart[6], (unsigned char*)ucStart[7]);
+//        uiMyInt = ucStart[5] + 256 * ucStart[6] + 65536 * ucStart[7];
+//        printf("     %.06X\n", uiMyInt);
+//        fprintf(myLogFile, "     %.06X\n", uiMyInt);
+//
+//        printf("[08] %.02X%.02X%.02X%.02X Starting Sector\n", (unsigned char*)ucStart[8], (unsigned char*)ucStart[9],(unsigned char*)ucStart[10],(unsigned char*)ucStart[11] );
+//        fprintf(myLogFile, "[08] %.02X%.02X%.02X%.02X Starting Sector\n", (unsigned char*)ucStart[8], (unsigned char*)ucStart[9], (unsigned char*)ucStart[10], (unsigned char*)ucStart[11]);
+//        uiMyInt = ucStart[8] + 256 * ucStart[9] + 65536 * ucStart[10] + 16777216 * ucStart[11];
+//        printf("     %.08X\n", uiMyInt);
+//        fprintf(myLogFile, "     %.08X\n", uiMyInt);
+//
+//        printf("[12] %.02X%.02X%.02X%.02X Partition Size (in sectors)\n", (unsigned char*)ucStart[12], (unsigned char*)ucStart[13],(unsigned char*)ucStart[14],(unsigned char*)ucStart[15] );
+//        fprintf(myLogFile, "[12] %.02X%.02X%.02X%.02X Partition Size (in sectors)\n", (unsigned char*)ucStart[12], (unsigned char*)ucStart[13], (unsigned char*)ucStart[14], (unsigned char*)ucStart[15]);
+//        uiMyInt = ucStart[12] + 256 * ucStart[13] + 65536 * ucStart[14] + 16777216 * ucStart[15];
+//        printf("     %.08X\n", uiMyInt);
+//        fprintf(myLogFile, "     %.08X\n", uiMyInt);
+//
+//
+//        
+//}
 
 int     main(int argc, char* argv[])
 {
         #define DEFAULT_INPUT_FILENAME		    "myBoot.img"
         #define DEFAULT_DRIVE_LETTER            'J'
 
-        #define OFFSET_INFO_PARTITION1_IN_MBR   0x1BE
-        #define OFFSET_INFO_PARTITION2_IN_MBR   0x1CE
-        #define OFFSET_INFO_PARTITION3_IN_MBR   0x1DE
-        #define OFFSET_INFO_PARTITION4_IN_MBR   0x1EE
-        #define OFFSET_INFO_MAGIC_IN_MBR        0x1FE
+        //#define OFFSET_INFO_PARTITION1_IN_MBR   0x1BE
+        //#define OFFSET_INFO_PARTITION2_IN_MBR   0x1CE
+        //#define OFFSET_INFO_PARTITION3_IN_MBR   0x1DE
+        //#define OFFSET_INFO_PARTITION4_IN_MBR   0x1EE
+        //#define OFFSET_INFO_MAGIC_IN_MBR        0x1FE
 
 
         //char   cDriveLetter = 'J';                 // J sur PC i9
@@ -245,7 +265,7 @@ int     main(int argc, char* argv[])
 
         char        cDriveLetter         = DEFAULT_DRIVE_LETTER;
         char        caInputFileName[256] = DEFAULT_INPUT_FILENAME;
-        uint32_t    uiSizeOfMbr = sizeof(MbrInfo);
+        //uint32_t  uiSizeOfMbr = sizeof(MbrInfo);
 
        if (argc >= 2)       // 1er argument (optionnel) est la lettre 
        {
@@ -304,58 +324,63 @@ int     main(int argc, char* argv[])
        numsectors = getNumberOfSectors(hReadRawDisk, &sectorsize);
        printf("numsectors = %d\n", numsectors);
        fprintf(myLogFile, "numsectors = %d\n", numsectors);
+       printf("sectorsize = %d\n", sectorsize);
+       fprintf(myLogFile, "sectorsize = %d\n", sectorsize);
+       printf("Size       = %lld\n", (long long)sectorsize*numsectors);
+       fprintf(myLogFile, "Size       = %lld\n", (long long)sectorsize*numsectors);
 
        uiMaxSectorLoadingSize = MAXIMUM_DUMP_SIZE / sectorsize;
 
 
-        // Read MBR partition table
-        printf("Read MBR partition table\n");
-        fprintf(myLogFile, "Read MBR partition table\n");
-        sectorMbrData = readSectorDataFromHandle(hReadRawDisk, 0, 1ul, 512ul);
-        HexDump((unsigned char*)sectorMbrData, 512);
-        printf("\n");
-        fprintf(myLogFile, "\n");
+        //// Read MBR partition table
+        //printf("Read MBR partition table\n");
+        //fprintf(myLogFile, "Read MBR partition table\n");
+        //sectorMbrData = readSectorDataFromHandle(hReadRawDisk, 0, 1ul, 512ul);
+        //HexDump((unsigned char*)sectorMbrData, 512);
+        //printf("\n");
+        //fprintf(myLogFile, "\n");
 
-        printf("MAGIC NUMBER : %.02X %.02X\n", (unsigned char)sectorMbrData[0x01FE], (unsigned char)sectorMbrData[0x01FF]);
-        fprintf(myLogFile, "MAGIC NUMBER : %.02X %.02X\n", (unsigned char)sectorMbrData[0x01FE], (unsigned char)sectorMbrData[0x01FF]);
+        //printf("MAGIC NUMBER : %.02X %.02X\n", (unsigned char)sectorMbrData[0x01FE], (unsigned char)sectorMbrData[0x01FF]);
+        //fprintf(myLogFile, "MAGIC NUMBER : %.02X %.02X\n", (unsigned char)sectorMbrData[0x01FE], (unsigned char)sectorMbrData[0x01FF]);
 
-        printf("\n");
-        fprintf(myLogFile, "\n");
-        printf("Read MBR 1st partition :\n");
-        fprintf(myLogFile, "Read MBR 1st partition :\n");
-        HexDump((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION1_IN_MBR], 16);
-        printf("\n");
-        fprintf(myLogFile, "\n");
-        DumpPartitionTableEntry((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION1_IN_MBR], 0);
+        //printf("\n");
+        //fprintf(myLogFile, "\n");
+        //printf("Read MBR 1st partition :\n");
+        //fprintf(myLogFile, "Read MBR 1st partition :\n");
+        //HexDump((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION1_IN_MBR], 16);
+        //printf("\n");
+        //fprintf(myLogFile, "\n");
+        //DumpPartitionTableEntry((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION1_IN_MBR], 0);
 
-        printf("\n");
-        fprintf(myLogFile, "\n");
-        printf("Read MBR 2nd partition :\n");
-        fprintf(myLogFile, "Read MBR 2nd partition :\n");
-        HexDump((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION2_IN_MBR], 16);
-        printf("\n");
-        fprintf(myLogFile, "\n");
-        DumpPartitionTableEntry((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION2_IN_MBR], 1);
+        //printf("\n");
+        //fprintf(myLogFile, "\n");
+        //printf("Read MBR 2nd partition :\n");
+        //fprintf(myLogFile, "Read MBR 2nd partition :\n");
+        //HexDump((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION2_IN_MBR], 16);
+        //printf("\n");
+        //fprintf(myLogFile, "\n");
+        //DumpPartitionTableEntry((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION2_IN_MBR], 1);
 
-        printf("\n");
-        fprintf(myLogFile, "\n");
-        printf("Read MBR 3rd partition :\n");
-        fprintf(myLogFile, "Read MBR 3rd partition :\n");
-        HexDump((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION3_IN_MBR], 16);
-        printf("\n");
-        fprintf(myLogFile, "\n");
-        DumpPartitionTableEntry((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION3_IN_MBR], 2);
+        //printf("\n");
+        //fprintf(myLogFile, "\n");
+        //printf("Read MBR 3rd partition :\n");
+        //fprintf(myLogFile, "Read MBR 3rd partition :\n");
+        //HexDump((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION3_IN_MBR], 16);
+        //printf("\n");
+        //fprintf(myLogFile, "\n");
+        //DumpPartitionTableEntry((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION3_IN_MBR], 2);
 
-        printf("\n");
-        fprintf(myLogFile, "\n");
-        printf("Read MBR 4th partition :\n");
-        fprintf(myLogFile, "Read MBR 4th partition :\n");
-        HexDump((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION4_IN_MBR], 16);
-        printf("\n");
-        fprintf(myLogFile, "\n");
-        DumpPartitionTableEntry((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION4_IN_MBR], 3);
+        //printf("\n");
+        //fprintf(myLogFile, "\n");
+        //printf("Read MBR 4th partition :\n");
+        //fprintf(myLogFile, "Read MBR 4th partition :\n");
+        //HexDump((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION4_IN_MBR], 16);
+        //printf("\n");
+        //fprintf(myLogFile, "\n");
+        //DumpPartitionTableEntry((unsigned char*)&sectorMbrData[OFFSET_INFO_PARTITION4_IN_MBR], 3);
         
-        ReadMBR((MbrInfo *)sectorMbrData);
+       sectorMbrData = readSectorDataFromHandle(hReadRawDisk, 0, 1ul, 512ul);
+       ReadMBR((MbrInfo *)sectorMbrData);
 
 //        numsectors = 1ul;
 //        // Read partition information
@@ -419,9 +444,10 @@ int     main(int argc, char* argv[])
         fread(dataToWrite, 1, PADDED_SIZE, myFile);
         fclose(myFile);
 
+
         // puis acces en ecriture
-        HANDLE  hWriteVolume = getHandleOnVolume(volumeID, GENERIC_WRITE);
-        DWORD   writeDeviceID = getDeviceID(hWriteVolume);
+        HANDLE  hWriteVolume    = getHandleOnVolume(volumeID, GENERIC_WRITE);
+        DWORD   writeDeviceID   = getDeviceID(hWriteVolume);
         HANDLE  hWriteRawDisk;
 
         if (!getLockOnVolume(hWriteVolume))
@@ -448,9 +474,9 @@ int     main(int argc, char* argv[])
 
         fprintf(myLogFile, "\n\n\nDump dataToWrite :\n");
         //memset(dataToWrite + 256, 0, 256);                // juste un essai
-        HexDump((unsigned char*)dataToWrite, 8 * 512);
+        HexDump((unsigned char*)dataToWrite, PADDED_SIZE);
 
-        uint32_t alteraPartitionStartSector = *((uint32_t*)(sectorMbrData + OFFSET_INFO_PARTITION1_IN_MBR + 8 + 16 * uiAlteraPartition));
+        //uint32_t alteraPartitionStartSector = *((uint32_t*)(sectorMbrData + OFFSET_INFO_PARTITION1_IN_MBR + 8 + 16 * uiAlteraPartition));
         writeSectorDataToHandle(hWriteRawDisk, (char*)dataToWrite, alteraPartitionStartSector, PADDED_SIZE/512, 512ul);
 
         free(dataToWrite);
