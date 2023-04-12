@@ -11,6 +11,7 @@
 FILE*       myLogFile                   =0;
 #define     MAXIMUM_DUMP_SIZE           0x10000
 #define     PADDED_SIZE	                0x10000
+#define     COMPLETE_SIZE_ON_SDCARD     PADDED_SIZE*4	                
 uint32_t    uiAlteraPartition           =0;
 //uint32_t  uiLinuxPartition            =0;
 char*       dataToWrite                 =0;
@@ -295,6 +296,9 @@ int     main(int argc, char* argv[])
        unsigned long long   i, numsectors;
        unsigned int         uiMaxSectorLoadingSize;
 
+       // TODO :: automatic scan of all volumes to detect A2 partitions
+       //         -> as an option only ? (such as "list all")
+
        // acces en lecture
        HANDLE hVolume	= getHandleOnVolume(volumeID, GENERIC_READ);
        DWORD deviceID	= getDeviceID(hVolume);
@@ -382,6 +386,10 @@ int     main(int argc, char* argv[])
        sectorMbrData = readSectorDataFromHandle(hReadRawDisk, 0, 1ul, 512ul);
        ReadMBR((MbrInfo *)sectorMbrData);
 
+       // TODO :: check if A2 partition was found
+       //         if not -> exit !
+
+       
 //        numsectors = 1ul;
 //        // Read partition information
 //        for (i=0ul; i<4ul; i++)
@@ -437,11 +445,15 @@ int     main(int argc, char* argv[])
         CloseHandle(hReadRawDisk);
         CloseHandle(hVolume);
 
+        // TODO :: check the input file is existing
+        //         check the input file is the right size
+        //         check the format of the file ?
+        
         // lecture du fichier
         FILE* myFile = NULL;
-        unsigned char* dataToWrite = (unsigned char*)malloc(PADDED_SIZE);
+        unsigned char* dataToWrite = (unsigned char*)malloc(COMPLETE_SIZE_ON_SDCARD);
         fopen_s(&myFile, caInputFileName, "rb");
-        fread(dataToWrite, 1, PADDED_SIZE, myFile);
+        fread(dataToWrite, 1, COMPLETE_SIZE_ON_SDCARD, myFile);
         fclose(myFile);
 
 
@@ -477,7 +489,7 @@ int     main(int argc, char* argv[])
         HexDump((unsigned char*)dataToWrite, PADDED_SIZE);
 
         //uint32_t alteraPartitionStartSector = *((uint32_t*)(sectorMbrData + OFFSET_INFO_PARTITION1_IN_MBR + 8 + 16 * uiAlteraPartition));
-        writeSectorDataToHandle(hWriteRawDisk, (char*)dataToWrite, alteraPartitionStartSector, PADDED_SIZE/512, 512ul);
+        writeSectorDataToHandle(hWriteRawDisk, (char*)dataToWrite, alteraPartitionStartSector, COMPLETE_SIZE_ON_SDCARD/512, 512ul);
 
         free(dataToWrite);
         removeLockOnVolume(hWriteVolume);
